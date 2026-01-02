@@ -74,6 +74,7 @@ This results in approximately **3-5 dB SNR gain** at moderate-to-high SNR.
 ```
 tp_com/
 ├── Main_Alamouti_Full_Project.m    # 🎯 Main simulation script (Project 3)
+├── Main_Alamouti_Extensions.m      # ⭐ Extensions: Rice(K), spatial correlation (rho), Doppler (fdTs)
 ├── main_5_Signal_Space_Simulation_with_Channel.m  # Reference SISO simulation
 ├── SNR_test.m                      # SNR sweep for BER analysis
 │
@@ -89,7 +90,8 @@ tp_com/
 │
 ├── Unit 4 - 3 - MIMO Processing.pdf    # Course slides
 ├── MU5EEF08 - Project ideas (2).pdf    # Project requirements
-└── README.md                       # This file
+├── README.md                       # This file
+└── extension.md                    # Detailed guide for Main_Alamouti_Extensions.m
 ```
 
 ---
@@ -122,6 +124,22 @@ All custom functions are included in the `tp_com/` folder:
    ```matlab
    Main_Alamouti_Full_Project
    ```
+
+### Extensions (optional but great for the oral / report)
+
+Run:
+
+```matlab
+Main_Alamouti_Extensions
+```
+
+This script produces 3 BER-vs-SNR figures that illustrate:
+
+- Rice (Rician) channel impact by sweeping **K factor**
+- **TX spatial correlation** impact by sweeping \( \rho \)
+- **Time-varying fading (Doppler)** impact by sweeping normalized Doppler \( f_D T_{symb} \)
+
+See `extension.md` for recommended parameters, how to interpret each sweep, and notes on Doppler tracking vs. block fading baselines.
 
 ### Expected Output
 
@@ -281,28 +299,3 @@ Lsnr_dB = 0:2:20;        % SNR range (dB)
 
    - [berfading](https://www.mathworks.com/help/comm/ref/berfading.html)
    - [biterr](https://www.mathworks.com/help/comm/ref/biterr.html)
-
----
-
-## 👤 Author
-
-**Course**: MU5EES08 - Advanced Physical Layer Concepts in 5G
-**University**: Sorbonne Université
-**Instructor**: Prof. Julien Sarrazin
-**Semester**: Sept.-Dec. 2024
-
----
-
-## 📝 License
-
-This project is for educational purposes as part of the MU5EES08 course.
-
----
-
-## 🔄 Version History
-
-| Version | Date     | Changes                                              |
-| ------- | -------- | ---------------------------------------------------- |
-| 1.0     | Dec 2025 | Initial implementation with QPSK                     |
-| 2.0     | Dec 2025 | Updated to 16-QAM, pilot estimation, French comments |
-| 2.1     | Dec 2025 | Fixed Alamouti scaling formula (Slide 25 standard)   |
