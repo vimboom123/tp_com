@@ -1,41 +1,41 @@
 %% Project 3 (Alamouti) - Extensions file
-% 目标：在不改动原始 Projet 3 脚本(Main_Alamouti_Full_Project.m)的情况下，
-%      额外实现/评估 3 个拓展方向：
-%   1) 额外信道模型：Rice (Rician) 信道，扫 K 因子
-%   2) 更真实的信道特性：发射天线间空间相关性（2x1 MISO 的 h1 与 h2 相关，参数 rho）
-%   3) 更真实的时变信道：Doppler 导致的时变衰落（用归一化 Doppler：fdTs = f_D * T_symb）
+% Objective: Without modifying the original Project 3 script (Main_Alamouti_Full_Project.m),
+%            implement and evaluate 3 extension directions:
+%   1) Additional channel model: Rice (Rician) channel, sweep K factor
+%   2) More realistic channel characteristics: Tx antenna spatial correlation (h1 and h2 correlated in 2x1 MISO, parameter rho)
+%   3) More realistic time-varying channel: Doppler-induced fading (normalized Doppler: fdTs = f_D * T_symb)
 %
-% 输出：每个拓展方向各自生成一张 BER vs SNR 曲线图（多条曲线对比）
+% Output: Each extension direction generates one BER vs SNR curve plot (multiple curves for comparison)
 %
-% 依赖（与原项目一致）：
+% Dependencies (same as original project):
 % - mapping_QAM.m / demapping_QAM.m / symbol_estimation_QAM.m
 % - raised_cosine.m / convolution_TX.m / convolution_RX.m
-% - Communications Toolbox: biterr (若你原脚本能跑，这里也能跑)
+% - Communications Toolbox: biterr (if your original script runs, this one will too)
 %
-% 备注：
-% - Doppler 时变信道这里使用“简化 Jakes 自相关 + AR(1) 近似”生成 Rayleigh/Rice 衰落序列
-% - 该脚本默认注重可读性与可展示性；想更平滑的 BER 曲线可增大 nb_frame_ber
+% Notes:
+% - Doppler time-varying channel uses "simplified Jakes autocorrelation + AR(1) approximation" to generate Rayleigh/Rice fading sequences
+% - This script prioritizes readability and presentation; for smoother BER curves, increase nb_frame_ber
 clc; close all;
-% 允许你在运行脚本前在 workspace 里预先设置下面这些开关（不会被清掉）
-clearvars -except fast_mode run_rice_sweep run_corr_sweep run_doppler_sweep;
+% Allow pre-setting these switches in workspace before running the script (they won't be cleared)
+clearvars -except fast_mode run_rice_sweep run_corr_sweep run_doppler_sweep doppler_tracking doppler_data_seg_len;
 
-%% ========== 全局参数（与 Main_Alamouti_Full_Project.m 对齐） ==========
-% 运行开关（为了节省时间，你也可以只跑其中一个 sweep）
+%% ========== Global Parameters (aligned with Main_Alamouti_Full_Project.m) ==========
+% Run switches (to save time, you can run only one sweep)
 if ~exist('run_rice_sweep', 'var'); run_rice_sweep = true; end
 if ~exist('run_corr_sweep', 'var'); run_corr_sweep = true; end
 if ~exist('run_doppler_sweep', 'var'); run_doppler_sweep = true; end
 
-% 快速模式：默认 false（更精确）；调试时可设为 true 加快速度
+% Fast mode: default false (more accurate); set to true for faster debugging
 if ~exist('fast_mode', 'var'); fast_mode = false; end
 
-% Doppler 优化：对时变信道做"分段导频追踪"，避免 BER 直接崩到 0.5
-% - doppler_tracking=true: 每隔 doppler_data_seg_len 个数据符号插入一次正交导频并更新 (h1,h2) 估计
-% - doppler_tracking=false: 只用帧头一次导频估计（高速 Doppler 下会很容易出现 BER floor≈0.5）
-if ~exist('doppler_tracking', 'var'); doppler_tracking = false; end
-if ~exist('doppler_data_seg_len', 'var'); doppler_data_seg_len = 100; end   % 必须为偶数；建议 50~200
+% Doppler optimization: perform "periodic pilot tracking" for time-varying channels to avoid BER collapsing to 0.5
+% - doppler_tracking=true: insert orthogonal pilots every doppler_data_seg_len data symbols and update (h1,h2) estimate
+% - doppler_tracking=false: use only frame-head pilot estimation (high-speed Doppler will easily cause BER floor ~ 0.5)
+if ~exist('doppler_tracking', 'var'); doppler_tracking = true; end
+if ~exist('doppler_data_seg_len', 'var'); doppler_data_seg_len = 100; end   % Must be even; recommended 50~200
 
-nb_data = 1000;             % 每帧数据符号数（必须为偶数，Alamouti 成对编码）
-nb_pilot = 10;              % pilot 符号数（每根天线各占 nb_pilot 个时隙，总 pilot 开销 2*nb_pilot）
+nb_data = 1000;             % Number of data symbols per frame (must be even for Alamouti pair encoding)
+nb_pilot = 10;              % Number of pilot symbols (each antenna occupies nb_pilot time slots, total pilot overhead = 2*nb_pilot)
 nb_bit_per_symb = 4;        % 16-QAM
 rolloff = 0.5;
 symb_rate = 100e6;
@@ -46,7 +46,7 @@ fs = symb_rate * sps;
 nb_bit = nb_data * nb_bit_per_symb;
 g = raised_cosine(rolloff, span, sps, 'sqrt');
 
-% BER 仿真设置
+% BER simulation settings
 if fast_mode
     Lsnr_dB = 0:4:20;
     nb_frame_ber = 120;
@@ -55,10 +55,10 @@ else
     nb_frame_ber = 500;
 end
 
-% 为了可复现（你也可以注释掉）
+% For reproducibility (you can comment this out)
 rng(1);
 
-% 生成一次 pilot（所有 sweep 复用同一组 pilot，方便公平对比）
+% Generate pilot once (all sweeps reuse the same pilot for fair comparison)
 bit_pilot = randi([0 1], nb_pilot * nb_bit_per_symb, 1);
 symb_pilot = mapping_QAM(bit_pilot, nb_bit_per_symb, length(bit_pilot));
 
@@ -67,15 +67,15 @@ fprintf('16-QAM, nb_data=%d, nb_pilot=%d (orthogonal pilots => 2*nb_pilot), sps=
 fprintf('SNR sweep: %d points, Monte-Carlo frames per point: %d\n\n', length(Lsnr_dB), nb_frame_ber);
 
 %% ============================================================
-%% 1) Rice(K) sweep：额外信道模型（Rician）
+%% 1) Rice(K) sweep: Additional channel model (Rician)
 %% ============================================================
 if fast_mode
-    K_dB_list = [0 10];     % 快速模式：少跑一点点
+    K_dB_list = [0 10];     % Fast mode: fewer points
 else
-    K_dB_list = [0 5 10];   % 完整模式
+    K_dB_list = [0 5 10];   % Full mode
 end
-rho = 0;               % 无空间相关
-fdTs = 0;              % block fading（每帧常数信道）
+rho = 0;               % No spatial correlation
+fdTs = 0;              % Block fading (constant channel per frame)
 
 BER_Rice = zeros(length(K_dB_list), length(Lsnr_dB));
 
@@ -104,7 +104,7 @@ if run_rice_sweep
 end
 
 %% ============================================================
-%% 2) 相关性 sweep：Tx 空间相关性（h1 与 h2 相关）
+%% 2) Correlation sweep: Tx spatial correlation (h1 and h2 correlated)
 %% ============================================================
 if fast_mode
     rho_list = [0 0.9];
@@ -112,7 +112,7 @@ else
     rho_list = [0 0.5 0.9];
 end
 K = 0;                 % Rayleigh
-fdTs = 0;              % block fading
+fdTs = 0;              % Block fading
 
 BER_Rho = zeros(length(rho_list), length(Lsnr_dB));
 
@@ -141,17 +141,17 @@ if run_corr_sweep
 end
 
 %% ============================================================
-%% 3) Doppler(fdTs) sweep：时变信道（归一化 Doppler = f_D * T_symb）
+%% 3) Doppler(fdTs) sweep: Time-varying channel (normalized Doppler = f_D * T_symb)
 %% ============================================================
-% fdTs 越大，信道随时间变化越快；Alamouti 假设“两时隙内信道不变”
-% 因此 fdTs 增大时，一般会看到性能明显劣化（尤其在两时隙内变化明显时）
+% The larger fdTs, the faster the channel varies; Alamouti assumes "channel constant over 2 time slots"
+% Therefore, as fdTs increases, performance typically degrades significantly (especially when channel changes noticeably within 2 slots)
 if fast_mode
-    % 之前用 0.2/0.5 会导致“几乎完全失配”而 BER≈0.5，这里换成更渐进的数值
+    % Previously using 0.2/0.5 caused "almost complete mismatch" with BER ~ 0.5, now using more gradual values
     fdTs_list = [0 0.005 0.01 0.02];
 else
     fdTs_list = [0 0.002 0.005 0.01 0.02];
 end
-rho = 0;                       % 无空间相关
+rho = 0;                       % No spatial correlation
 K = 0;                         % Rayleigh
 
 BER_Doppler = zeros(length(fdTs_list), length(Lsnr_dB));
@@ -192,7 +192,7 @@ if run_doppler_sweep
 end
 
 fprintf('\n=== Done ===\n');
-fprintf('你现在可以把这 3 张图直接用在答辩 PPT 的“扩展/讨论”部分。\n');
+fprintf('You can now use these 3 figures directly in the "Extension/Discussion" section of your presentation.\n');
 
 %% =====================================================================
 %% Local functions
@@ -203,7 +203,7 @@ function BER = sim_ber_alamouti(Lsnr_dB, nb_frame_ber, ...
 
 BER = zeros(1, length(Lsnr_dB));
 
-% pilot mode: 'single' (帧头一次) or 'periodic' (分段追踪)
+% Pilot mode: 'single' (frame head only) or 'periodic' (segmented tracking)
 if isfield(chanOpt, 'pilot_mode')
     pilot_mode = chanOpt.pilot_mode;
 else
@@ -212,14 +212,14 @@ end
 
 if strcmpi(pilot_mode, 'periodic')
     if ~isfield(chanOpt, 'data_seg_len')
-        error('pilot_mode=periodic 时必须提供 chanOpt.data_seg_len');
+        error('pilot_mode=periodic requires chanOpt.data_seg_len to be provided');
     end
     data_seg_len = chanOpt.data_seg_len;
     if mod(data_seg_len, 2) ~= 0
-        error('data_seg_len 必须为偶数（Alamouti 成对解码）。');
+        error('data_seg_len must be even (Alamouti decodes in pairs).');
     end
     if mod(nb_data, data_seg_len) ~= 0
-        error('nb_data 必须能被 data_seg_len 整除，方便分段处理。');
+        error('nb_data must be divisible by data_seg_len for segmented processing.');
     end
     nSeg = nb_data / data_seg_len;
 end
@@ -245,7 +245,7 @@ for k = 1:length(Lsnr_dB)
         tx1_data(2:2:end) = -conj(s2) * scale;
         tx2_data(2:2:end) = conj(s1) * scale;
 
-        %% ===== pilots (orthogonal in time) =====
+        %% ===== Pilots (orthogonal in time) =====
         pilot_len = nb_pilot;
         pilot_tx1 = [symb_pilot; zeros(pilot_len, 1)];
         pilot_tx2 = [zeros(pilot_len, 1); symb_pilot];
@@ -255,7 +255,7 @@ for k = 1:length(Lsnr_dB)
             frame_tx2 = [pilot_tx2; tx2_data];
             frame_len_symb = 2*pilot_len + nb_data;
         else
-            % periodic: [pilots | data_seg] repeated
+            % Periodic: [pilots | data_seg] repeated
             frame_tx1 = [];
             frame_tx2 = [];
             for iseg = 1:nSeg
@@ -267,11 +267,11 @@ for k = 1:length(Lsnr_dB)
             frame_len_symb = nSeg * (2*pilot_len + data_seg_len);
         end
 
-        %% ===== pulse shaping =====
+        %% ===== Pulse shaping =====
         sig_tx1 = convolution_TX(frame_tx1, g, sps);
         sig_tx2 = convolution_TX(frame_tx2, g, sps);
 
-        %% ===== channel (2x1 MISO) =====
+        %% ===== Channel (2x1 MISO) =====
         [h1_samp, h2_samp] = gen_miso_2x1_channel_samples(length(sig_tx1), sps, span, chanOpt);
         r_nl = h1_samp .* sig_tx1 + h2_samp .* sig_tx2;
 
@@ -285,10 +285,10 @@ for k = 1:length(Lsnr_dB)
         symb_rx = convolution_RX(r, g, sps);
         symb_rx = symb_rx(span+1 : span+frame_len_symb);
 
-        %% ===== channel estimation + Alamouti decoding =====
+        %% ===== Channel estimation + Alamouti decoding =====
         rec = zeros(nb_data, 1);
         if strcmpi(pilot_mode, 'single')
-            % --- pilot at frame head ---
+            % --- Pilot at frame head ---
             pilot_rx1 = symb_rx(1:pilot_len);
             pilot_rx2 = symb_rx(pilot_len+1 : 2*pilot_len);
 
@@ -310,7 +310,7 @@ for k = 1:length(Lsnr_dB)
             rec(1:2:end) = x1_eq;
             rec(2:2:end) = x2_eq;
         else
-            % --- periodic pilots: estimate per segment, then decode segment data ---
+            % --- Periodic pilots: estimate per segment, then decode segment data ---
             blkLen = 2*pilot_len + data_seg_len;
             for iseg = 1:nSeg
                 blkStart = (iseg-1)*blkLen + 1;
@@ -342,7 +342,7 @@ for k = 1:length(Lsnr_dB)
             end
         end
 
-        %% ===== hard decision + demap =====
+        %% ===== Hard decision + demap =====
         symb_hat = symbol_estimation_QAM(rec, nb_bit_per_symb, nb_data);
         bits_hat = demapping_QAM(symb_hat, nb_bit_per_symb, nb_data);
 
@@ -356,39 +356,39 @@ end
 end
 
 function [h1_samp, h2_samp] = gen_miso_2x1_channel_samples(nb_samp, sps, span, chanOpt)
-% 输出 h1_samp/h2_samp：长度 nb_samp 的列向量（对每个采样点的信道系数）
+% Output h1_samp/h2_samp: column vectors of length nb_samp (channel coefficient for each sample)
 %
-% 生成思路：
-% - 先按“符号速率”生成信道序列 H_symb（长度约为 nb_samp/sps）
-% - 再把每个符号的信道系数重复 sps 次扩展到采样点
+% Generation approach:
+% - First generate channel sequence H_symb at "symbol rate" (length ~ nb_samp/sps)
+% - Then repeat each symbol's channel coefficient sps times to expand to sample points
 
 rho = chanOpt.rho;
 if abs(rho) >= 1
-    error('rho 必须满足 |rho|<1 才能保证协方差矩阵正定。');
+    error('rho must satisfy |rho|<1 to ensure covariance matrix is positive definite.');
 end
 
-% 需要的“符号间隔”数量：用 ceil(nb_samp/sps) 再 +span 做 padding，避免边界不足
+% Number of "symbol intervals" needed: use ceil(nb_samp/sps) + span for padding to avoid boundary issues
 nb_symb = ceil(nb_samp / sps) + span;
 
-% Doppler：使用归一化 fdTs = f_D * T_symb，Jakes 自相关 R(1)=J0(2*pi*fdTs)
+% Doppler: use normalized fdTs = f_D * T_symb, Jakes autocorrelation R(1)=J0(2*pi*fdTs)
 fdTs = chanOpt.fdTs;
 if fdTs < 0
-    error('fdTs 必须 >= 0');
+    error('fdTs must be >= 0');
 end
 
 if fdTs == 0
     a = 1;
 else
     a = besselj(0, 2*pi*fdTs);
-    % 数值安全：避免 |a|>1 导致 sqrt(1-a^2) 复数
+    % Numerical safety: avoid |a|>1 causing sqrt(1-a^2) to be complex
     a = max(min(a, 1), -1);
 end
 
-% 天线相关性协方差矩阵（2x2）
+% Antenna correlation covariance matrix (2x2)
 R = [1 rho; rho 1];
 L = chol(R, 'lower');
 
-% 生成 Rayleigh NLOS：2 x nb_symb
+% Generate Rayleigh NLOS: 2 x nb_symb
 U = (randn(2, nb_symb) + 1i*randn(2, nb_symb)) / sqrt(2);
 W = L * U;
 
@@ -410,22 +410,20 @@ switch chanOpt.type
     case 'Rice'
         K = chanOpt.K;
         if K < 0
-            error('Rice K 必须 >= 0');
+            error('Rice K must be >= 0');
         end
-        % LOS：每根天线一个固定相位（每帧随机一次即可）
+        % LOS: each antenna has a fixed phase (randomized once per frame)
         phi = 2*pi*rand(2, 1);
         H_los = exp(1i*phi) * ones(1, nb_symb);
         H = sqrt(K/(1+K)) * H_los + sqrt(1/(1+K)) * H_nlos;
     otherwise
-        error('未知 channel type: %s (支持 Rayleigh / Rice)', chanOpt.type);
+        error('Unknown channel type: %s (supported: Rayleigh / Rice)', chanOpt.type);
 end
 
-% 扩展到采样点：每个符号重复 sps 次
+% Expand to sample points: repeat each symbol sps times
 H_samp = kron(H, ones(1, sps));    % 2 x (nb_symb*sps)
 H_samp = H_samp(:, 1:nb_samp);
 
 h1_samp = H_samp(1, :).';
 h2_samp = H_samp(2, :).';
 end
-
-
