@@ -76,7 +76,7 @@ plot(f*1e-6, 10*log10(abs(fftshift(fft(sig_TX1)))));
 grid on; title('Spectre Antenne TX 1 (Alamouti, 16-QAM)');
 xlabel('Fréquence [MHz]'); ylabel('Amplitude [dB]');
 
-% --- Canal de Rayleigh ---
+% --- Canal de Rayleigh (complexe gaussien -> |h| suit distribution Rayleigh) ---
 H1_vis = (randn + 1i*randn)/sqrt(2);
 H2_vis = (randn + 1i*randn)/sqrt(2);
 
@@ -171,7 +171,8 @@ for k = 1:length(Lsnr_dB)
         bits = randi([0 1], nb_bit, 1);
         syms_data = mapping_QAM(bits, nb_bit_per_symb, nb_bit);
         
-        % Génération du canal (Rayleigh)
+        % Génération du canal (Rayleigh) - complexe gaussien CN(0,1)
+        % |h| suit distribution Rayleigh, E[|h|^2] = 1
         h1 = (randn + 1i*randn)/sqrt(2);
         h2 = (randn + 1i*randn)/sqrt(2);
         h_siso = (randn + 1i*randn)/sqrt(2);

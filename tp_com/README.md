@@ -228,17 +228,13 @@ Shows the **Root Raised Cosine** filtered spectrum with:
 - Roll-off factor $\beta = 0.5$
 - Symbol rate $R_s = 100$ Msym/s
 
-![TX Spectrum](image/README/TX_Spectrum_Alamouti_16QAM.png)
-
 ### Figure 2: Constellation Diagrams
 
 | Subplot           | Description                                             |
 | ----------------- | ------------------------------------------------------- |
 | 1. TX Symbols     | Standard 16-QAM constellation at ±1, ±3               |
-| 2. RX Raw         | Distorted cloud (superposition of $h_1 x_1 + h_2 x_2$) |
+| 2. RX Raw         | Distorted cloud (superposition of$h_1 x_1 + h_2 x_2$) |
 | 3. After Decoding | Recovered 16-QAM constellation                          |
-
-![Constellations](image/README/Constellations_TX_RX_Decoded.png)
 
 ### Figure 3: BER Curves
 
@@ -254,22 +250,6 @@ Shows the **Root Raised Cosine** filtered spectrum with:
 - Simulation curves closely match theoretical predictions
 - Alamouti provides ~5-8 dB gain at high SNR
 - Steeper slope for Alamouti (diversity order = 2)
-
-![BER Curves](image/README/BER_Alamouti_vs_SISO_Rayleigh.png)
-
-### Extension Results (from `Main_Alamouti_Extensions.m`)
-
-#### Rice K-Factor Sweep
-
-![Rice K Sweep](image/README/RICE(K).png)
-
-#### TX Spatial Correlation Sweep
-
-![Correlation Sweep](image/README/corre.png)
-
-#### Doppler Time-Varying Fading Sweep
-
-![Doppler Sweep](image/README/Doppler.png)
 
 ---
 
